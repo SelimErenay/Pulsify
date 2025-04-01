@@ -1,5 +1,5 @@
 ---
-title: "Pulsify"
+title: "Pulsify Project"
 output: html_document
 date: "2025-04-01"
 ---
