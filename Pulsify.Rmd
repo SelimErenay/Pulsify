@@ -55,9 +55,86 @@ most_popular_row <- data %>%
 head(most_popular_row)
 ```
 
+```{r}
+# 3. Find the matching row in the normalized data
+reference <- features_normalized %>%
+  filter(track_name == most_popular_row$track_name,
+         artists == most_popular_row$artists) %>%
+  select(danceability, energy, valence, tempo, acousticness) %>%
+  slice(1)  # ✅ This ensures reference is exactly 1 row
 
+# 4. Compute Euclidean distances
+distances <- proxy::dist(comparison_data, reference, method = "euclidean")
 
+# 5. Add the distances back to the dataset
+features_with_distance <- features_normalized %>%
+  mutate(distance = as.vector(distances))
 
+```
+
+```{r}
+recommendations <- features_with_distance %>%
+  filter(track_name != most_popular_row$track_name | artists != most_popular_row$artists) %>%
+  arrange(distance) %>%
+  distinct(track_name, artists, .keep_all = TRUE) %>%   # ✅ Only keep the first version of each song
+  select(track_name, artists, distance) %>%
+  slice(1:10)
+
+recommendations
+```
+
+```{r reusable function}
+recommend_track <- function(song_title) {
+  # 1. Get most popular version
+  most_popular_row <- data %>%
+    filter(track_name == song_title) %>%
+    arrange(desc(popularity)) %>%
+    slice(1)
+
+  # 2. Get normalized features
+  reference <- features_normalized %>%
+    filter(track_name == most_popular_row$track_name,
+           artists == most_popular_row$artists) %>%
+    select(danceability, energy, valence, tempo, acousticness) %>%
+    slice(1)
+
+  comparison_data <- features_normalized %>%
+    select(danceability, energy, valence, tempo, acousticness)
+
+  distances <- proxy::dist(comparison_data, reference, method = "euclidean")
+
+  features_with_distance <- features_normalized %>%
+    mutate(distance = as.vector(distances))
+
+  recommendations <- features_with_distance %>%
+    filter(track_name != most_popular_row$track_name | artists != most_popular_row$artists) %>%
+    arrange(distance) %>%
+    distinct(track_name, artists, .keep_all = TRUE) %>%
+    select(track_name, artists, distance) %>%
+    slice(1:10)
+
+  # 📊 Plot
+  library(ggplot2)
+  plot <- ggplot(recommendations, aes(x = reorder(track_name, -distance), y = distance)) +
+    geom_col(fill = "steelblue") +
+    coord_flip() +
+    labs(title = paste("Top 10 Songs Similar to", song_title),
+         x = "Track Name", y = "Distance")
+
+  print(plot)
+
+  # 📤 Export to CSV
+  filename <- paste0(gsub(" ", "_", tolower(song_title)), "_recommendations.csv")
+  write_csv(recommendations, filename)
+
+  return(recommendations)
+
+}
+```
+
+```{r}
+recommend_track("Shape of You")
+```
 
 
 
