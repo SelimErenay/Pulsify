@@ -1,7 +1,8 @@
 ---
-title: "Pulsify Project"
+title: "Pulsify: Spotify Track Recommendation System"
+author: "Selim Erenay, Omer Erenay"
+date: "`r Sys.Date()`"
 output: html_document
-date: "2025-04-01"
 ---
 
 ```{r setup, include=FALSE}
@@ -9,89 +10,57 @@ knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 library(dplyr)
 library(ggplot2)
-knitr::opts_chunk$set(echo = TRUE)
+library(proxy)
 ```
 
+# Introduction
+
+This project builds a **content-based song recommendation system** using Spotify track data.  
+We use audio features such as `danceability`, `energy`, `valence`, `tempo`, and `acousticness` to find songs that are musically similar to a selected track.
+
+# Data Loading
 
 ```{r}
+# Load dataset
 data <- read_csv("dataset.csv")
-```
-```{r}
-head(data)
-```
 
-```{r}
+# Quick overview
+glimpse(data)
 summary(data)
 ```
-```{r}
-glimpse(data)
-```
+
+# Data Preprocessing
+
+We selected relevant audio features and normalized them to ensure fair comparisons.
 
 ```{r}
+# Selecting important features
 features <- data %>%
   select(track_name, artists, danceability, energy, valence, tempo, acousticness) %>%
   na.omit()
-```
 
-```{r}
-head(features)
-```
-
-```{r}
+# Normalizing numerical features
 features_normalized <- features %>%
-  mutate(across(c(danceability, energy, valence, tempo, acousticness), scale))
+  mutate(across(c(danceability, energy, valence, tempo, acousticness),
+                ~ scale(.)[,1]))
 ```
+
+# Building the Recommendation System
+
+We created a function `recommend_track()` that:
+- Selects the most popular version of a track
+- Compares all songs to it using **Euclidean distance**
+- Returns the top 10 most similar songs
+- Plots the results
+- Saves recommendations automatically to a CSV file
 
 ```{r}
-head(features_normalized)
-```
-```{r}
-selected_track <- "Blinding Lights"
-
-most_popular_row <- data %>%
-  filter(track_name == selected_track) %>%
-  arrange(desc(popularity)) %>%
-  slice(1)
-head(most_popular_row)
-```
-
-```{r}
-# 3. Find the matching row in the normalized data
-reference <- features_normalized %>%
-  filter(track_name == most_popular_row$track_name,
-         artists == most_popular_row$artists) %>%
-  select(danceability, energy, valence, tempo, acousticness) %>%
-  slice(1)  # ✅ This ensures reference is exactly 1 row
-
-# 4. Compute Euclidean distances
-distances <- proxy::dist(comparison_data, reference, method = "euclidean")
-
-# 5. Add the distances back to the dataset
-features_with_distance <- features_normalized %>%
-  mutate(distance = as.vector(distances))
-
-```
-
-```{r}
-recommendations <- features_with_distance %>%
-  filter(track_name != most_popular_row$track_name | artists != most_popular_row$artists) %>%
-  arrange(distance) %>%
-  distinct(track_name, artists, .keep_all = TRUE) %>%   # ✅ Only keep the first version of each song
-  select(track_name, artists, distance) %>%
-  slice(1:10)
-
-recommendations
-```
-
-```{r reusable function}
 recommend_track <- function(song_title) {
-  # 1. Get most popular version
   most_popular_row <- data %>%
     filter(track_name == song_title) %>%
     arrange(desc(popularity)) %>%
     slice(1)
 
-  # 2. Get normalized features
   reference <- features_normalized %>%
     filter(track_name == most_popular_row$track_name,
            artists == most_popular_row$artists) %>%
@@ -113,8 +82,7 @@ recommend_track <- function(song_title) {
     select(track_name, artists, distance) %>%
     slice(1:10)
 
-  # 📊 Plot
-  library(ggplot2)
+  # Plot
   plot <- ggplot(recommendations, aes(x = reorder(track_name, -distance), y = distance)) +
     geom_col(fill = "steelblue") +
     coord_flip() +
@@ -123,18 +91,28 @@ recommend_track <- function(song_title) {
 
   print(plot)
 
-  # 📤 Export to CSV
+  # Export CSV
   filename <- paste0(gsub(" ", "_", tolower(song_title)), "_recommendations.csv")
   write_csv(recommendations, filename)
 
   return(recommendations)
-
 }
 ```
 
+# Running the Recommendation System
+
+Example: finding songs similar to **"Blinding Lights"**.
+
 ```{r}
-recommend_track("Shape of You")
+recommend_track("Blinding Lights")
 ```
+# Conclusion
+
+Using normalized audio features and Euclidean distance, we successfully built a content-based recommendation engine.  
+This system recommends the top 10 most similar songs to any chosen track and saves results for further analysis.
+
+After each function call, the top 10 recommended songs are automatically exported into a CSV file, named based on the selected track (e.g., `blinding_lights_recommendations.csv`).
+This allows for easy retrieval and sharing of recommendation results.
 
 
 
